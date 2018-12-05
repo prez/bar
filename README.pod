@@ -67,7 +67,7 @@ Set the border color of the bar. Accepts the same color formats as B<-B>.
 
 =item B<-r> I<size>
 
-Add a border with the specified size. I<size> must be a number in pixels. 
+Add a border with the specified size. I<size> must be a number in pixels.
 
 =item B<-o> I<offset>
 
@@ -186,10 +186,6 @@ Clicking on an area makes lemonbar output the command to stdout, followed by a n
 =head1 WWW
 
 Original (LemonBoy) L<git repository|https://github.com/LemonBoy/bar>
-
-Derived (krypt-n)  L<git repository|https://github.com/krypt-n/bar>
-
-This (dark-yux) L<git repository|https://github.com/dark-yux/bar>
 
 =head1 AUTHOR
 
