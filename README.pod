@@ -189,7 +189,7 @@ Original (LemonBoy) L<git repository|https://github.com/LemonBoy/bar>
 
 =head1 AUTHOR
 
-2012-2015 (C) The Lemon Man, Edited by Christopher L. Ramsey (dark-yux)
+2012-2015 (C) The Lemon Man
 
 Xinerama support was kindly contributed by Stebalien
 
