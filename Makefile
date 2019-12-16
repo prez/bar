@@ -35,7 +35,7 @@ debug: ${EXEC}
 debug: CC += ${CFDEBUG}
 
 clean:
-	rm -f ./*.o ./*.1
+	rm -f ./*.o
 	rm -f ./${EXEC}
 
 install: lemonbar doc
