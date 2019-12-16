@@ -1,4 +1,3 @@
-// vim:sw=4:ts=4:et:
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -1504,6 +1503,7 @@ main (int argc, char **argv)
     xcb_render_pictformat_t fmtid;
     const xcb_render_query_pict_formats_reply_t *fmt_rep;
     char input[4096] = {0, };
+    size_t input_off = 0;
     bool permanent = false;
     int geom_v[4] = { -1, -1, 0, 0 };
     int ch, areas;
@@ -1609,16 +1609,50 @@ main (int argc, char **argv)
             break;
 
         if (poll(pollin, 2, -1) > 0) {
-            if (pollin[0].revents & POLLHUP) {      // No more data...
-                if (permanent) pollin[0].fd = -1;   // ...null the fd and continue polling :D
-                else break;                         // ...bail out
-            }
-            if (pollin[0].revents & POLLIN) { // New input, process it
-                if (fgets(input, sizeof(input), stdin) == NULL)
-                    break; // EOF received
+            if (pollin[0].revents & (POLLIN | POLLHUP)) { // New input (or no more data)
+                if (input_off == sizeof(input)) {
+                    input_off = 0;
+                }
+                ssize_t r;
+                while ((r = read(0, input + input_off, sizeof(input) - input_off)) < 0 && errno == EINTR)
+                    ;
+                if (r < 0) {
+                    perror("read");
+                    break;
+                } else if (r == 0) {                    // No more data...
+                    if (permanent) pollin[0].fd = -1;   // ...null the fd and continue polling :D
+                    else break;                         // ...bail out
+                } else {
+                    const size_t end = input_off + r;
+                    // find the last occurence of \n and one before it
+                    size_t last = -1, prelast = -1;
+                    while (1) {
+                        const size_t from = last + 1;
+                        if (from == end) {
+                            break;
+                        }
+                        const char *t = memchr(input + from, '\n', end - from);
+                        if (!t) {
+                            break;
+                        }
+                        prelast = last;
+                        last = t - input;
+                    }
+                    if (last == -1) {
+                        // no newline found
+                        input_off = end;
+                    } else {
+                        input[last] = '\0';
+                        parse(input + (prelast + 1));
+                        redraw = true;
 
-                parse(input);
-                redraw = true;
+                        const size_t n = end - (last + 1);
+                        if (n) {
+                            memmove(input, input + (last + 1), n);
+                        }
+                        input_off = n;
+                    }
+                }
             }
             if (pollin[1].revents & POLLIN) { // The event comes from the Xorg server
                 while ((ev = xcb_poll_for_event(c))) {
