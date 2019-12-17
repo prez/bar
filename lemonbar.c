@@ -1433,7 +1433,7 @@ init (char *wm_name)
 
         // Set the WM_NAME atom to the user specified value
         if (wm_name)
-            xcb_change_property(c, XCB_PROP_MODE_REPLACE, monhead->window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8 ,strlen(wm_name), wm_name);
+            xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon->window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8 ,strlen(wm_name), wm_name);
     }
 
     char color[] = "#ffffff";
@@ -1550,7 +1550,7 @@ main (int argc, char **argv)
                 exit (EXIT_SUCCESS);
             case 'g': (void)parse_geometry_string(optarg, geom_v); break;
             case 'p': permanent = true; break;
-            case 'n': wm_name = optarg; break;
+            case 'n': wm_name = strdup(optarg); break;
             case 'b': topbar = false; break;
             case 'S': rotate_text = 2; break;
             case 's': rotate_text = 1; break;
@@ -1590,6 +1590,8 @@ main (int argc, char **argv)
 
     // Do the heavy lifting
     init(wm_name);
+    // free the duplicated optarg string
+    free(wm_name);
     // Get the fd to Xserver
     pollin[1].fd = xcb_get_file_descriptor(c);
 
