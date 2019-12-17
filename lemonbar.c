@@ -928,7 +928,7 @@ void add_y_offset(int offset) {
 }
 
 void
-set_ewmh_atoms (void)
+set_ewmh_atoms (char *wm_name)
 {
     xcb_intern_atom_cookie_t *cookie;
 
@@ -961,7 +961,11 @@ set_ewmh_atoms (void)
         xcb_ewmh_set_wm_strut_partial(ewmh, mon->window, strut);
         xcb_ewmh_set_wm_strut(ewmh, mon->window,
                 0, 0, strut.top, strut.bottom);
-        xcb_ewmh_set_wm_name(ewmh, mon->window, 3, "bar");
+        if (wm_name) {
+            xcb_ewmh_set_wm_name(ewmh, mon->window, strlen(wm_name), wm_name);
+        } else {
+            xcb_ewmh_set_wm_name(ewmh, mon->window, 3, "bar");
+        }
     }
 }
 
@@ -1410,7 +1414,7 @@ init (char *wm_name)
         exit(EXIT_FAILURE);
 
     // For WM that support EWMH atoms
-    set_ewmh_atoms();
+    set_ewmh_atoms(wm_name);
 
     // Create the gc for drawing
     gc[GC_DRAW] = xcb_generate_id(c);
@@ -1434,6 +1438,10 @@ init (char *wm_name)
         // Set the WM_NAME atom to the user specified value
         if (wm_name)
             xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon->window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8 ,strlen(wm_name), wm_name);
+
+        // Set the WM_CLASS to "lemonbar, Bar" regardless, outside of set_ewmh_atoms()
+        xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon->window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 12, "lemonbar\0Bar");
+    
     }
 
     char color[] = "#ffffff";
