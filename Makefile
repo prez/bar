@@ -1,49 +1,50 @@
-# This snippet has been shmelessly stol^Hborrowed from thestinger's repose Makefile
+.POSIX:
+
+NAME = bar
 VERSION = 1.1
-GIT_DESC=$(shell test -d .git && git describe --always 2>/dev/null)
 
-ifneq "$(GIT_DESC)" ""
-	VERSION=$(GIT_DESC)
-endif
+CC	   = cc
+PREFIX = /usr/local
+bindir = /bin
+mandir = /share/man
 
-CC	?= clang
-CFLAGS += -Wall -std=c99 -O2 -DVERSION="\"$(VERSION)\"" -D_POSIX_C_SOURCE=200809L -I/usr/include/freetype2
-LDFLAGS += -lxcb -lxcb-xinerama -lxcb-randr -lxcb-ewmh \
-		   -lxcb-render -lxcb-render-util -lm -lX11 -lX11-xcb -lXft -lfreetype -lz -lfontconfig
-CFDEBUG = -g3 -pedantic -Wall -Wunused-parameter -Wlong-long \
-          -Wsign-conversion -Wconversion -Wimplicit-function-declaration
+CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -O2     \
+         -I/usr/include/freetype2
+CFDEBUG = $(CFLAGS) -g3
 
-EXEC = bar
-SRCS = bar.c
-OBJS = ${SRCS:.c=.o}
+CPPFLAGS = -D_POSIX_C_SOURCE=200809L               \
+           -DVERSION="\"$(VERSION)\""
 
-PREFIX?=${HOME}/usr/local
-BINDIR=${PREFIX}/bin
+LDLIBS = -lxcb -lxcb-xinerama -lxcb-randr          \
+         -lxcb-ewmh -lxcb-render -lxcb-render-util \
+         -lm -lX11 -lX11-xcb                       \
+         -lXft -lfreetype -lz                      \
+         -lfontconfig
 
-all: ${EXEC}
+all: $(NAME)
+
+$(NAME): $(NAME).o
+	$(CC) $(LDFLAGS) $(CFLAGS) $(NAME).o -o $(NAME) $(LDLIBS)
+$(NAME).o: $(NAME).c
 
 doc: README.pod
-	pod2man --section=1 --center="bar Manual" --name "bar" --release="bar $(VERSION)" README.pod > bar.1
+	pod2man --section=1 --center="bar Manual" --name "bar" README.pod > bar.1
 
-.c.o:
-	${CC} ${CFLAGS} -o $@ -c $<
+debug: $(NAME).o
+	$(CC) $(LDFLAGS) $(CFDEBUG) $(NAME).o -o $(NAME) $(LDLIBS)
 
-${EXEC}: ${OBJS}
-	${CC} -o ${EXEC} ${OBJS} ${LDFLAGS}
-
-debug: ${EXEC}
-debug: CC += ${CFDEBUG}
-
-clean:
-	rm -f ./*.o
-	rm -f ./${EXEC}
-
-install: bar doc
-	install -D -m 755 bar ${DESTDIR}${BINDIR}/bar
-	install -D -m 644 bar.1 ${HOME}/usr/man/man1/bar.1
+install: $(NAME) doc
+	install -D -m 0755 bar $(DESTDIR)$(PREFIX)$(bindir)/bar
+	install -D -m 0644 bar.1 $(DESTDIR)$(PREFIX)$(mandir)/man1/bar.1
 
 uninstall:
-	rm -f ${DESTDIR}${BINDIR}/bar
-	rm -f $(DESTDIR)$(PREFIX)/share/man/man1/bar.1
+	rm -f $(DESTDIR)$(PREFIX)$(bindir)/bar
+	rm -f $(DESTDIR)$(PREFIX)$(mandir)/man1/bar.1
+
+clean:
+	rm -f $(NAME) $(NAME).o $(NAME).1
+
+utf8test: $(NAME)
+	echo '流れてく, 時の中ででも, 気だ' | ./bar -p -f "monospace"
 
 .PHONY: all debug clean install
