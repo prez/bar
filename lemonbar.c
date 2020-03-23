@@ -1,3 +1,4 @@
+#include <err.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -10,6 +11,7 @@
 #include <getopt.h>
 #include <unistd.h>
 #include <errno.h>
+
 #include <xcb/xcb.h>
 #include <xcb/xcbext.h>
 #include <xcb/xinerama.h>
@@ -17,15 +19,14 @@
 #include <xcb/render.h>
 #include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_renderutil.h>
+#include <X11/Xft/Xft.h>
+#include <X11/Xlib-xcb.h>
 
 #ifndef M_PI
 #define M_PI           3.14159265358979323846
 #endif
 
-#include <X11/Xft/Xft.h>
-#include <X11/Xlib-xcb.h>
-
-// Here bet  dragons
+// Here be dragons
 
 #define max(a,b) ((a) > (b) ? (a) : (b))
 #define min(a,b) ((a) < (b) ? (a) : (b))
@@ -79,13 +80,14 @@ typedef struct area_stack_t {
 
 enum {
     ATTR_OVERL = (1<<0),
-    ATTR_UNDERL = (1<<1),
+    ATTR_UNDERL = (1<<1)
 };
 
-enum { ALIGN_L = 0,
-       ALIGN_C,
-       ALIGN_R
-     };
+enum {
+	ALIGN_L = 0,
+	ALIGN_C,
+	ALIGN_R
+};
 
 enum {
     GC_DRAW = 0,
@@ -94,7 +96,10 @@ enum {
     GC_MAX
 };
 
-#define MAX_FONT_COUNT 5
+enum {
+	MAX_FONT_COUNT = 5,
+	MAX_WIDTHS = (1 << 16) //char width lookuptable
+};
 
 static Display *dpy;
 static xcb_connection_t *c;
@@ -127,6 +132,13 @@ static int bsize = 0;
 static rgba_t fgc, bbgc, bgc, ugc;
 static rgba_t dfgc, dbgc, dugc;
 static area_stack_t area_stack;
+
+static XftColor sel_fg;
+static XftDraw *xft_draw;
+
+static wchar_t xft_char[MAX_WIDTHS];
+static char    xft_width[MAX_WIDTHS];
+
 
 xcb_render_fixed_t
 float_to_fixed(float f)
@@ -174,7 +186,10 @@ get_drawable_depth(xcb_connection_t *c, xcb_drawable_t drawable)
 
 
 void
-rotate_pixmap(xcb_connection_t *c, xcb_pixmap_t from, xcb_pixmap_t to,
+rotate_pixmap(
+	xcb_connection_t *c,
+	xcb_pixmap_t from,
+	xcb_pixmap_t to,
     xcb_render_pictformat_t fmtid)
 {
     xcb_render_picture_t picture, pic_mask, back_pix;
@@ -250,16 +265,8 @@ rotate_pixmap(xcb_connection_t *c, xcb_pixmap_t from, xcb_pixmap_t to,
             p_size.height);
 }
 
-static XftColor sel_fg;
-static XftDraw *xft_draw;
-
-//char width lookuptable
-#define MAX_WIDTHS (1 << 16)
-static wchar_t xft_char[MAX_WIDTHS];
-static char    xft_width[MAX_WIDTHS];
-
 void
-update_gc (void)
+update_gc(void)
 {
     xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, (const uint32_t []){ fgc.v });
     xcb_change_gc(c, gc[GC_CLEAR], XCB_GC_FOREGROUND, (const uint32_t []){ bgc.v });
@@ -274,7 +281,14 @@ update_gc (void)
 }
 
 void
-fill_gradient (xcb_drawable_t d, int x, int y, int width, int height, rgba_t start, rgba_t stop)
+fill_gradient(
+	xcb_drawable_t d,
+	int x,
+	int y,
+	int width,
+	int height,
+	rgba_t start,
+	rgba_t stop)
 {
     float i;
     const int K = 25; // The number of steps
@@ -302,7 +316,13 @@ fill_gradient (xcb_drawable_t d, int x, int y, int width, int height, rgba_t sta
 }
 
 void
-fill_rect (xcb_drawable_t d, xcb_gcontext_t _gc, int x, int y, int width, int height)
+fill_rect(
+	xcb_drawable_t d,
+	xcb_gcontext_t _gc,
+	int x,
+	int y,
+	int width,
+	int height)
 {
     xcb_poly_fill_rectangle(c, d, _gc, 1, (const xcb_rectangle_t []){ { x, y, width, height } });
 }
@@ -310,9 +330,15 @@ fill_rect (xcb_drawable_t d, xcb_gcontext_t _gc, int x, int y, int width, int he
 // Apparently xcb cannot seem to compose the right request for this call, hence we have to do it by
 // ourselves.
 // The funcion is taken from 'wmdia' (http://wmdia.sourceforge.net/)
-xcb_void_cookie_t xcb_poly_text_16_simple(xcb_connection_t * c,
-    xcb_drawable_t drawable, xcb_gcontext_t gc, int16_t x, int16_t y,
-    uint32_t len, const uint16_t *str)
+xcb_void_cookie_t
+xcb_poly_text_16_simple(
+	xcb_connection_t * c,
+    xcb_drawable_t drawable,
+    xcb_gcontext_t gc,
+    int16_t x,
+    int16_t y,
+    uint32_t len,
+    const uint16_t *str)
 {
     static const xcb_protocol_request_t xcb_req = {
         5,                // count
@@ -354,7 +380,7 @@ xcb_void_cookie_t xcb_poly_text_16_simple(xcb_connection_t * c,
 
 
 int
-xft_char_width_slot (uint16_t ch)
+xft_char_width_slot(uint16_t ch)
 {
     int slot = ch % MAX_WIDTHS;
     while (xft_char[slot] != 0 && xft_char[slot] != ch)
@@ -364,7 +390,8 @@ xft_char_width_slot (uint16_t ch)
     return slot;
 }
 
-int xft_char_width (uint16_t ch, font_t *cur_font)
+int
+xft_char_width(uint16_t ch, font_t *cur_font)
 {
     int slot = xft_char_width_slot(ch);
     if (!xft_char[slot]) {
@@ -383,7 +410,7 @@ int xft_char_width (uint16_t ch, font_t *cur_font)
 }
 
 int
-draw_char (monitor_t *mon, font_t *cur_font, int x, int align, uint16_t ch)
+draw_char(monitor_t *mon, font_t *cur_font, int x, int align, uint16_t ch)
 {
     int ch_width;
 
@@ -437,7 +464,7 @@ draw_char (monitor_t *mon, font_t *cur_font, int x, int align, uint16_t ch)
 }
 
 rgba_t
-parse_color (const char *str, char **end, const rgba_t def)
+parse_color(const char *str, char **end, const rgba_t def)
 {
     int string_len;
     char *ep;
@@ -510,7 +537,7 @@ parse_color (const char *str, char **end, const rgba_t def)
 }
 
 void
-set_attribute (const char modifier, const char attribute)
+set_attribute(const char modifier, const char attribute)
 {
     int pos = indexof(attribute, "ou");
 
@@ -534,7 +561,7 @@ set_attribute (const char modifier, const char attribute)
 
 
 area_t *
-area_get (xcb_window_t win, const int btn, const int x)
+area_get(xcb_window_t win, const int btn, const int x)
 {
     // Looping backwards ensures that we get the innermost area first
     for (int i = area_stack.at; i >= 0; i--) {
@@ -547,7 +574,7 @@ area_get (xcb_window_t win, const int btn, const int x)
 }
 
 void
-area_shift (xcb_window_t win, const int align, int delta)
+area_shift(xcb_window_t win, const int align, int delta)
 {
     if (align == ALIGN_L)
         return;
@@ -564,7 +591,14 @@ area_shift (xcb_window_t win, const int align, int delta)
 }
 
 bool
-area_add (char *str, const char *optend, char **end, monitor_t *mon, const int x, const int align, const int button)
+area_add(
+	char *str,
+	const char *optend,
+	char **end,
+	monitor_t *mon,
+	const int x,
+	const int align,
+	const int button)
 {
     int i;
     char *trail;
@@ -648,7 +682,7 @@ area_add (char *str, const char *optend, char **end, monitor_t *mon, const int x
 }
 
 bool
-font_has_glyph (font_t *font, const uint16_t c)
+font_has_glyph(font_t *font, const uint16_t c)
 {
     if (font->xft_ft) {
         if (XftCharExists(dpy, font->xft_ft, (FcChar32) c)) {
@@ -669,7 +703,7 @@ font_has_glyph (font_t *font, const uint16_t c)
 }
 
 font_t *
-select_drawable_font (const uint16_t c)
+select_drawable_font(const uint16_t c)
 {
     // If the user has specified a font to use, try that first.
     if (font_index != -1 && font_has_glyph(font_list[font_index - 1], c)) {
@@ -690,7 +724,7 @@ select_drawable_font (const uint16_t c)
 
 
 void
-parse (char *text)
+parse(char *text)
 {
     font_t *cur_font;
     monitor_t *cur_mon;
@@ -860,7 +894,7 @@ parse (char *text)
 }
 
 void
-font_load (const char *pattern)
+font_load(const char *pattern)
 {
     if (font_count >= MAX_FONT_COUNT) {
         fprintf(stderr, "Max font count reached. Could not load font \"%s\"\n", pattern);
@@ -928,7 +962,7 @@ void add_y_offset(int offset) {
 }
 
 void
-set_ewmh_atoms (char *wm_name)
+set_ewmh_atoms(char *wm_name)
 {
     xcb_intern_atom_cookie_t *cookie;
 
@@ -970,7 +1004,7 @@ set_ewmh_atoms (char *wm_name)
 }
 
 monitor_t *
-monitor_new (int x, int y, int width, int height)
+monitor_new(int x, int y, int width, int height)
 {
     monitor_t *ret;
 
@@ -1020,7 +1054,7 @@ monitor_new (int x, int y, int width, int height)
 }
 
 void
-monitor_add (monitor_t *mon)
+monitor_add(monitor_t *mon)
 {
     if (!monhead) {
         monhead = mon;
@@ -1036,7 +1070,7 @@ monitor_add (monitor_t *mon)
 }
 
 int
-rect_sort_cb (const void *p1, const void *p2)
+rect_sort_cb(const void *p1, const void *p2)
 {
     const xcb_rectangle_t *r1 = (xcb_rectangle_t *)p1;
     const xcb_rectangle_t *r2 = (xcb_rectangle_t *)p2;
@@ -1055,7 +1089,7 @@ rect_sort_cb (const void *p1, const void *p2)
 }
 
 void
-monitor_create_chain (xcb_rectangle_t *rects, const int num)
+monitor_create_chain(xcb_rectangle_t *rects, const int num)
 {
     int i;
     int width = 0, height = 0;
@@ -1124,7 +1158,7 @@ monitor_create_chain (xcb_rectangle_t *rects, const int num)
 }
 
 void
-get_randr_monitors (void)
+get_randr_monitors(void)
 {
     xcb_randr_get_screen_resources_current_reply_t *rres_reply;
     xcb_randr_output_t *outputs;
@@ -1218,7 +1252,7 @@ get_randr_monitors (void)
 }
 
 void
-get_xinerama_monitors (void)
+get_xinerama_monitors(void)
 {
     xcb_xinerama_query_screens_reply_t *xqs_reply;
     xcb_xinerama_screen_info_iterator_t iter;
@@ -1247,7 +1281,7 @@ get_xinerama_monitors (void)
 }
 
 xcb_visualid_t
-get_visual (void)
+get_visual(void)
 {
 
     XVisualInfo xv;
@@ -1268,7 +1302,7 @@ get_visual (void)
 
 // Parse an X-styled geometry string, we don't support signed offsets though.
 bool
-parse_geometry_string (char *str, int *tmp)
+parse_geometry_string(char *str, int *tmp)
 {
     char *p = str;
     int i = 0, j;
@@ -1318,7 +1352,7 @@ parse_geometry_string (char *str, int *tmp)
 }
 
 void
-xconn (void)
+xconn(void)
 {
     if ((dpy = XOpenDisplay(0)) == NULL) {
         fprintf (stderr, "Couldnt open display\n");
@@ -1346,7 +1380,7 @@ xconn (void)
 }
 
 void
-init (char *wm_name)
+init(char *wm_name)
 {
     // Try to load a default font
     if (!font_count)
@@ -1441,7 +1475,7 @@ init (char *wm_name)
 
         // Set the WM_CLASS to "lemonbar, Bar" regardless, outside of set_ewmh_atoms()
         xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon->window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 12, "lemonbar\0Bar");
-    
+
     }
 
     char color[] = "#ffffff";
@@ -1455,7 +1489,7 @@ init (char *wm_name)
 }
 
 void
-cleanup (void)
+cleanup(void)
 {
     free(area_stack.area);
     for (int i = 0; font_list[i]; i++) {
@@ -1490,7 +1524,7 @@ cleanup (void)
 }
 
 void
-sighandle (int signal)
+sighandle(int signal)
 {
     if (signal == SIGINT || signal == SIGTERM)
         exit(EXIT_SUCCESS);
@@ -1498,7 +1532,7 @@ sighandle (int signal)
 
 
 int
-main (int argc, char **argv)
+main(int argc, char **argv)
 {
     struct pollfd pollin[2] = {
         { .fd = STDIN_FILENO, .events = POLLIN },
@@ -1558,7 +1592,10 @@ main (int argc, char **argv)
                 exit (EXIT_SUCCESS);
             case 'g': (void)parse_geometry_string(optarg, geom_v); break;
             case 'p': permanent = true; break;
-            case 'n': wm_name = strdup(optarg); break;
+            case 'n':
+            	wm_name = strdup(optarg);
+		if (NULL == wm_name) err(1, NULL);
+            	break;
             case 'b': topbar = false; break;
             case 'S': rotate_text = 2; break;
             case 's': rotate_text = 1; break;

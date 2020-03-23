@@ -1,4 +1,4 @@
 lemonbar
 *.o
-*.swp
-*~
+.clang-format
+TODO
