@@ -1472,6 +1472,9 @@ init(char *wm_name)
         // Some WM such as Openbox need this
         xcb_configure_window(c, mon->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, (const uint32_t []){ mon->x, mon->y });
 
+	// Push bar at the bottom of the window stack
+	xcb_configure_window(c, mon->window, XCB_CONFIG_WINDOW_STACK_MODE, (const uint32_t []){ XCB_STACK_MODE_BELOW });
+
         // Set the WM_NAME atom to the user specified value
         if (wm_name)
             xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon->window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8 ,strlen(wm_name), wm_name);
