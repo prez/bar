@@ -564,10 +564,9 @@ area_t *
 area_get(xcb_window_t win, const int btn, const int x)
 {
     // Looping backwards ensures that we get the innermost area first
-    for (int i = area_stack.at; i >= 0; i--) {
+    for (int i = area_stack.at - 1; i >= 0; i--) {
         area_t *a = &area_stack.area[i];
-        if (a->window == win && a->button == btn
-                && x >= a->begin && x < a->end)
+        if (a->window == win && a->button == btn && x >= a->begin && x < a->end)
             return a;
     }
     return NULL;
@@ -837,6 +836,10 @@ parse(char *text)
             // Eat the trailing }
             p++;
         } else { // utf-8 -> ucs-2
+            // Escaped % symbol, eat the first one
+            if ('%' == p[0] && '%' == p[1])
+                p++;
+
             uint8_t *utf = (uint8_t *)p;
             uint16_t ucs;
 
@@ -865,7 +868,7 @@ parse(char *text)
                 ucs = 0xfffd;
                 p += 5;
             }
-            // Siz byte utf8 sequence
+            // Six byte utf8 sequence
             else if ((utf[0] & 0xfe) == 0xfc) {
                 ucs = 0xfffd;
                 p += 6;
@@ -1473,8 +1476,8 @@ init(char *wm_name)
         if (wm_name)
             xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon->window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8 ,strlen(wm_name), wm_name);
 
-        // Set the WM_CLASS to "lemonbar, Bar" regardless, outside of set_ewmh_atoms()
-        xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon->window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 12, "lemonbar\0Bar");
+        // Set the WM_CLASS to "bar, Bar" regardless, outside of set_ewmh_atoms()
+        xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon->window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, strlen("bar\0Bar"), "bar\0Bar");
 
     }
 
@@ -1571,7 +1574,7 @@ main(int argc, char **argv)
     while ((ch = getopt(argc, argv, "hg:bsSdf:a:pu:B:F:U:R:n:o:r:")) != -1) {
         switch (ch) {
             case 'h':
-                printf ("lemonbar version %s\n", VERSION);
+                printf ("bar version %s\n", VERSION);
                 printf ("usage: %s [-h | -g | -b | -d | -f | -a | -p | -n | -u | -B | -F | -R | -r]\n"
                         "\t-h Show this help\n"
                         "\t-g Set the bar geometry {width}x{height}+{xoffset}+{yoffset}\n"

@@ -1,4 +1,5 @@
-lemonbar
+bar
 *.o
+*.1
 .clang-format
 TODO
